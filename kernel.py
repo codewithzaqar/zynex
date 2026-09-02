@@ -1,5 +1,7 @@
 """Zynex Kernel Core - Orchestrates all subsystems"""
 
+import traceback
+from syscalls import SysCallHandler, SysCall
 from config import VERSION, CODENAME, TICK_RATE_HZ
 from memory import MemoryManager
 from scheduler import Scheduler
@@ -14,6 +16,7 @@ class ZynexKernel:
         self.scheduler = Scheduler()
         self.ipc = IPCManager()
         self.running = False
+        self.syscall = SysCallHandler(self)
 
     def init(self) -> None:
         self.console.print(f"Zynex Kernel v{VERSION} ({CODENAME}) initializing...")
@@ -42,6 +45,15 @@ class ZynexKernel:
             self.console.print("Interrupt received. Shutting down.", level="WARN")
         finally:
             self.shutdown()
+
+    def panic(self, messgae: str, exc: Exception | None = None) -> None:
+        self.console.print(f"KERNEL PANIC: {message}", level="PANIC")
+        if exc and PANIC_DUMP_STACK:
+            tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+            for line in tb.strip().split("\n"):
+                self.console.print(f" {line}", level="TRACE")
+        self.running = False
+        self.shutdown()
 
     def shutdown(self) -> None:
         self.running = False

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Zynex Kernel Bootloader - v0.0.1a01"""
+"""Zynex Kernel Bootloader - v0.0.1a"""
 
 from kernel import ZynexKernel
 from ipc import Message
@@ -28,15 +28,29 @@ def memory_demo_task():
     # Access kernel instance through a global or passed reference
     # For v0.0.1a01, we use a simple module-level reference
     import boot
-    mm = boot.kernel_instance.memory
+    sc = boot.kernel_instance.syscall
 
-    addr = mm.allocate(64)
-    if addr is not None:
-        mm.write(addr, b"Zynex v0.0.1a01")
-        data = mm.read(addr, 15)
-        print(f"  [TASK mem_demo] Read back: {data.decode()}")
-        mm.free(addr)
-        print(f"  [TASK mem_demo] Freed. Stats: {mm.stats()}")
+    # Allocate via syscall
+    result = sc.invoke(SysCall.MEM_ALLOC, 128)
+    if not result.ok:
+        sc.invoke(SysCall.CONSOLE_PRINT, f"Alloc failed: {result.error}")
+        yield
+        return
+
+    addr = result.value
+    sc.invoke(SysCall.MEM_WRITE, addr, b"Zynex v0.0.1a!")
+
+    read_result = sc.invoke(SysCall.MEM_READ, addr, 16)
+    sc.invoke(SysCall.CONSOLE_PRINT, f"Read back: {read_result.value.decode()}")
+
+    # Free and re-allocate to prove free-list works (impossible in a)
+    sc.invoke(SysCall.MEM_FREE, addr)
+    result2 = sc.invoke(SysCall.MEM_ALLOC, 64)
+    sc.invoke(SysCall.CONSOLE_PRINT, f"Re-alloc after free: addr=0x{result2.value:08X} (was 0x{addr:08X})")
+
+    if result2.ok:
+        sc.invoke(SysCall.MEM_FREE, result2.value)
+
     yield
 
 
